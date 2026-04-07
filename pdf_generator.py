@@ -292,7 +292,7 @@ def make_volcano_drawing(metabolites, theme, width=180, height=130):
     # Axis labels
     lc = rl_color(theme["subtext"])
     d.add(String(pad + plot_w/2, 2, "log2(FC)", fontSize=5, fillColor=lc, textAnchor='middle'))
-    d.add(String(6, pad + plot_h/2, "-log10(p)", fontSize=5, fillColor=lc, textAnchor='middle'))
+    d.add(String(pad - 14, pad + plot_h/2, "-log10(p)", fontSize=5, fillColor=lc, textAnchor='middle'))
 
     # Threshold lines
     sig_y = pad + plot_h * 0.65
@@ -358,19 +358,19 @@ def make_heatmap_drawing(metabolites, theme, width=180, height=130):
     rng = random.Random(7)
     groups = ["C"] * 4 + ["T"] * 4
 
+    sc = rl_color(theme["subtext"])
     for gi, g in enumerate(groups):
         gx = pad_l + gi * cell_w + cell_w / 2
-        sc = rl_color(theme["subtext"])
-        d.add(String(gx, pad_b - 10, g, fontSize=4.5, fillColor=sc, textAnchor='middle'))
+        d.add(String(gx, pad_b - 9, g, fontSize=4.5, fillColor=sc, textAnchor='middle'))
 
+    lc2 = rl_color(theme["subtext"])
     for mi in range(n_met):
         m = metabolites[mi]
         name = m.get("name", f"Met {mi+1}")
-        if len(name) > 12:
-            name = name[:11] + "…"
+        if len(name) > 11:
+            name = name[:10] + "."
         gy = pad_b + mi * cell_h + cell_h / 2
-        lc = rl_color(theme["subtext"])
-        d.add(String(pad_l - 3, gy - 2, name, fontSize=4.5, fillColor=lc, textAnchor='end'))
+        d.add(String(pad_l - 2, gy - 2, name, fontSize=4.5, fillColor=lc2, textAnchor='end'))
 
         for si in range(n_samples):
             is_treatment = si >= 4
@@ -752,15 +752,15 @@ def build_summary_page(theme, study_data, metabolites, elements, styles):
     card_bg = rl_color(theme["card_bg"])
     up_c = rl_color(theme["up_color"])
     dn_c = rl_color(theme["down_color"])
+    header_text_c = rl_color(theme["header_text"])
     w, _ = A4
 
     h2_style = ParagraphStyle('H2', fontName='Helvetica-Bold', fontSize=14,
-                               textColor=rl_color(theme["header_text"]),
-                               backColor=accent, borderPad=8,
+                               textColor=header_text_c,
                                spaceBefore=0, spaceAfter=0, leading=20)
 
     elements.append(Spacer(1, 5*mm))
-    heading_table = Table([[Paragraph("📊 Summary Statistics", h2_style)]], colWidths=[w - 30*mm])
+    heading_table = Table([[Paragraph("Summary Statistics", h2_style)]], colWidths=[w - 30*mm])
     heading_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), accent),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
@@ -776,30 +776,50 @@ def build_summary_page(theme, study_data, metabolites, elements, styles):
     n_sig = sum(1 for m in metabolites if m.get("pvalue", 1) < 0.05)
     n_total = len(metabolites)
 
-    stat_style = ParagraphStyle('StatVal', fontName='Helvetica-Bold', fontSize=20,
-                                 textColor=accent, alignment=TA_CENTER)
-    stat_lbl = ParagraphStyle('StatLbl', fontName='Helvetica', fontSize=8,
-                               textColor=sub_c, alignment=TA_CENTER)
+    # Each stat card: label on top, big number below — in separate rows so they never overlap
+    stat_val_style = ParagraphStyle('StatVal', fontName='Helvetica-Bold', fontSize=22,
+                                     textColor=accent, alignment=TA_CENTER, leading=26)
+    stat_lbl_style = ParagraphStyle('StatLbl', fontName='Helvetica', fontSize=8,
+                                     textColor=sub_c, alignment=TA_CENTER, leading=11)
 
     stats = [
         (str(n_total), "Total Features"),
-        (str(n_sig), "Significant (p<0.05)"),
-        (str(n_up), "Up-regulated"),
-        (str(n_dn), "Down-regulated"),
+        (str(n_sig), "Significant\n(p < 0.05)"),
+        (str(n_up),  "Up-regulated"),
+        (str(n_dn),  "Down-regulated"),
     ]
 
-    stat_cells = [[Paragraph(v, stat_style), Paragraph(l, stat_lbl)] for v, l in stats]
+    col_w = (w - 30*mm) / 4
 
-    stat_table = Table(
-        [stat_cells],
-        colWidths=[(w - 30*mm) / 4] * 4
-    )
+    # Build each card as a 2-row inner table (label + value) so text never overlaps
+    card_tables = []
+    for val, lbl in stats:
+        inner = Table(
+            [
+                [Paragraph(lbl, stat_lbl_style)],
+                [Paragraph(val, stat_val_style)],
+            ],
+            colWidths=[col_w - 4*mm],
+        )
+        inner.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), card_bg),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        card_tables.append(inner)
+
+    stat_table = Table([card_tables], colWidths=[col_w] * 4)
     stat_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), card_bg),
-        ('BOX', (0, 0), (-1, -1), 1, border_c),
+        ('BOX',       (0, 0), (-1, -1), 1, border_c),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, border_c),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING',    (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 0),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     elements.append(stat_table)
@@ -851,16 +871,11 @@ def build_metabolite_pages(theme, metabolites, elements, styles, per_page=4):
     card_bg = rl_color(theme["card_bg"])
     up_c = rl_color(theme["up_color"])
     dn_c = rl_color(theme["down_color"])
+    header_text_c = rl_color(theme["header_text"])
     w, _ = A4
 
     h2_style = ParagraphStyle('H2met', fontName='Helvetica-Bold', fontSize=13,
-                               textColor=rl_color(theme["header_text"]),
-                               leading=18)
-
-    label_style = ParagraphStyle('MetLabel', fontName='Helvetica-Bold', fontSize=7,
-                                  textColor=sub_c, spaceAfter=1)
-    value_style = ParagraphStyle('MetValue', fontName='Helvetica', fontSize=8,
-                                  textColor=text_c, spaceAfter=2)
+                               textColor=header_text_c, leading=18)
 
     for page_start in range(0, len(metabolites), per_page):
         page_mets = metabolites[page_start:page_start + per_page]
@@ -868,7 +883,7 @@ def build_metabolite_pages(theme, metabolites, elements, styles, per_page=4):
         elements.append(Spacer(1, 5*mm))
         pg_num = page_start // per_page + 1
         heading_table = Table(
-            [[Paragraph(f"🧪 Metabolite Details — Page {pg_num}", h2_style)]],
+            [[Paragraph(f"Metabolite Details  —  Page {pg_num}", h2_style)]],
             colWidths=[w - 30*mm]
         )
         heading_table.setStyle(TableStyle([
@@ -882,92 +897,116 @@ def build_metabolite_pages(theme, metabolites, elements, styles, per_page=4):
         elements.append(Spacer(1, 3*mm))
 
         # Grid: 2 metabolites per row
+        card_w = (w - 30*mm) / 2 - 3*mm
+
+        name_style = ParagraphStyle('MName', fontName='Helvetica-Bold', fontSize=9,
+                                     textColor=text_c, leading=13, spaceAfter=2)
+        up_dir_style  = ParagraphStyle('MDirUp',  fontName='Helvetica-Bold', fontSize=7,
+                                        textColor=up_c,  leading=10, spaceAfter=2)
+        dn_dir_style  = ParagraphStyle('MDirDn',  fontName='Helvetica-Bold', fontSize=7,
+                                        textColor=dn_c,  leading=10, spaceAfter=2)
+        ns_dir_style  = ParagraphStyle('MDirNS',  fontName='Helvetica-Bold', fontSize=7,
+                                        textColor=sub_c, leading=10, spaceAfter=2)
+        lbl_style = ParagraphStyle('MKL', fontName='Helvetica-Bold', fontSize=6.5,
+                                    textColor=sub_c, leading=9)
+        val_style = ParagraphStyle('MKV', fontName='Helvetica',      fontSize=6.5,
+                                    textColor=text_c, leading=9)
+
         for row_start in range(0, len(page_mets), 2):
             row_mets = page_mets[row_start:row_start + 2]
             card_cells = []
 
             for m in row_mets:
-                name = m.get("name", "Unknown")
+                name    = m.get("name", "Unknown")
                 formula = m.get("formula", "")
-                mz = m.get("mz", 0)
-                rt = m.get("rt", 0)
-                fc = m.get("fc", 0)
-                pval = m.get("pvalue", 1)
-                padj = m.get("padj", 1)
-                hmdb = m.get("hmdb", "")
+                mz      = float(m.get("mz", 0))
+                rt      = float(m.get("rt", 0))
+                fc      = float(m.get("fc", 0))
+                pval    = float(m.get("pvalue", 1))
+                padj    = float(m.get("padj", 1))
+                hmdb    = m.get("hmdb", "")
                 pathway = m.get("pathway", "")
 
-                is_up = fc > 0
-                sig_color = up_c if (is_up and pval < 0.05) else dn_c if pval < 0.05 else sub_c
-                direction = "↑ Up" if (is_up and pval < 0.05) else "↓ Down" if pval < 0.05 else "NS"
+                is_up  = fc > 0 and pval < 0.05
+                is_dn  = fc < 0 and pval < 0.05
+                if is_up:
+                    direction  = "Up-regulated"
+                    dir_style  = up_dir_style
+                elif is_dn:
+                    direction  = "Down-regulated"
+                    dir_style  = dn_dir_style
+                else:
+                    direction  = "Not significant"
+                    dir_style  = ns_dir_style
 
-                card_w = (w - 30*mm - 4*mm) / 2
-                bar_d = make_bar_drawing(m, theme, width=float(card_w - 8), height=100)
+                bar_d = make_bar_drawing(m, theme, width=float(card_w - 6*mm), height=95)
 
-                name_style = ParagraphStyle('MName', fontName='Helvetica-Bold', fontSize=9,
-                                             textColor=text_c)
-                dir_style = ParagraphStyle('MDir', fontName='Helvetica-Bold', fontSize=7,
-                                            textColor=sig_color)
-
-                meta_data = [
-                    ["Formula", formula, "m/z", f"{mz:.4f}"],
-                    ["RT (min)", f"{rt:.2f}", "FC", f"{fc:+.2f}"],
-                    ["p-value", f"{pval:.4f}", "p-adj", f"{padj:.4f}"],
-                    ["HMDB", hmdb, "Pathway", pathway],
+                # Metadata as a 2-column table: "Label: value" pairs, 2 per row
+                # Use fixed mm widths so labels never wrap
+                lbl_w  = 18*mm   # label column
+                val_w  = (card_w - 6*mm) / 2 - lbl_w   # value column
+                meta_rows = [
+                    [Paragraph("Formula",  lbl_style), Paragraph(formula,       val_style),
+                     Paragraph("m/z",      lbl_style), Paragraph(f"{mz:.4f}",  val_style)],
+                    [Paragraph("RT (min)", lbl_style), Paragraph(f"{rt:.2f}",   val_style),
+                     Paragraph("FC",       lbl_style), Paragraph(f"{fc:+.2f}", val_style)],
+                    [Paragraph("p-value",  lbl_style), Paragraph(f"{pval:.4f}", val_style),
+                     Paragraph("p-adj",    lbl_style), Paragraph(f"{padj:.4f}",val_style)],
+                    [Paragraph("HMDB",     lbl_style), Paragraph(hmdb,          val_style),
+                     Paragraph("Pathway",  lbl_style), Paragraph(pathway,       val_style)],
                 ]
-
-                meta_table = Table(meta_data, colWidths=[card_w * 0.18, card_w * 0.3, card_w * 0.18, card_w * 0.3])
+                meta_table = Table(
+                    meta_rows,
+                    colWidths=[lbl_w, val_w, lbl_w, val_w],
+                )
                 meta_table.setStyle(TableStyle([
-                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                    ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 7),
-                    ('TEXTCOLOR', (0, 0), (0, -1), sub_c),
-                    ('TEXTCOLOR', (2, 0), (2, -1), sub_c),
-                    ('TEXTCOLOR', (1, 0), (1, -1), text_c),
-                    ('TEXTCOLOR', (3, 0), (3, -1), text_c),
-                    ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ('TOPPADDING',    (0, 0), (-1, -1), 2),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 2),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+                    ('LEFTPADDING',   (0, 0), (-1, -1), 3),
+                    ('RIGHTPADDING',  (0, 0), (-1, -1), 3),
+                    ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
+                    ('LINEBELOW',     (0, 0), (-1, -2), 0.3, border_c),
                 ]))
 
-                card_content = [
-                    [Paragraph(name, name_style)],
-                    [Paragraph(direction, dir_style)],
-                    [DrawingFlowable(bar_d)],
-                    [meta_table],
-                ]
-
-                card_table = Table(card_content, colWidths=[card_w - 8])
-                card_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, -1), card_bg),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                # Card content: name row, direction row, chart, meta table
+                card_content = Table(
+                    [
+                        [Paragraph(name,      name_style)],
+                        [Paragraph(direction, dir_style)],
+                        [DrawingFlowable(bar_d)],
+                        [meta_table],
+                    ],
+                    colWidths=[card_w - 4*mm],
+                )
+                card_content.setStyle(TableStyle([
+                    ('BACKGROUND',    (0, 0), (-1, -1), card_bg),
+                    ('TOPPADDING',    (0, 0), (-1, -1), 5),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                    ('LEFTPADDING',   (0, 0), (-1, -1), 5),
+                    ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
+                    ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
                 ]))
 
-                outer_table = Table([[card_table]], colWidths=[card_w])
-                outer_table.setStyle(TableStyle([
-                    ('BOX', (0, 0), (-1, -1), 1, border_c),
-                    ('TOPPADDING', (0, 0), (-1, -1), 0),
+                outer = Table([[card_content]], colWidths=[card_w])
+                outer.setStyle(TableStyle([
+                    ('BOX',           (0, 0), (-1, -1), 1, border_c),
+                    ('TOPPADDING',    (0, 0), (-1, -1), 0),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 0),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                    ('LEFTPADDING',   (0, 0), (-1, -1), 0),
+                    ('RIGHTPADDING',  (0, 0), (-1, -1), 0),
                 ]))
-
-                card_cells.append(outer_table)
+                card_cells.append(outer)
 
             if len(card_cells) == 1:
-                card_cells.append(Spacer(1, 1))
+                card_cells.append(Spacer(card_w, 1))
 
-            row_table = Table([card_cells], colWidths=[(w - 30*mm) / 2] * 2)
+            row_table = Table([card_cells], colWidths=[card_w + 3*mm] * 2)
             row_table.setStyle(TableStyle([
-                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('TOPPADDING',    (0, 0), (-1, -1), 2),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-                ('LEFTPADDING', (0, 0), (-1, -1), 0),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING',   (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING',  (0, 0), (-1, -1), 3*mm),
+                ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
             ]))
             elements.append(row_table)
             elements.append(Spacer(1, 2*mm))
@@ -991,7 +1030,7 @@ def build_results_table(theme, metabolites, elements, styles):
     h2_style = ParagraphStyle('H2tbl', fontName='Helvetica-Bold', fontSize=13,
                                textColor=header_text, leading=18)
     elements.append(Spacer(1, 5*mm))
-    heading_table = Table([[Paragraph("📋 Complete Results Table", h2_style)]], colWidths=[w - 30*mm])
+    heading_table = Table([[Paragraph("Complete Results Table", h2_style)]], colWidths=[w - 30*mm])
     heading_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), accent),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
